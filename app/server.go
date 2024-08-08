@@ -37,5 +37,6 @@ func handleConnection(conn net.Conn) {
 	router.Get("/", Ping)
 	router.Get("/echo/{message}", Echo)
 	router.Get("/user-agent", UserAgent)
+	router.Get("/files/{filename}", DoesFileExist)
 	router.Serve(conn)
 }
