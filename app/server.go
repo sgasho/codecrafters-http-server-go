@@ -5,10 +5,10 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 )
 
 func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	fmt.Println("Logs from your program will appear here!")
 
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
@@ -29,7 +29,20 @@ func main() {
 		}
 	}(c)
 
-	if _, err := c.Write([]byte("HTTP/1.1 200 OK\r\n\r\n")); err != nil {
+	buf := make([]byte, 1024)
+	if _, err := c.Read(buf); err != nil {
 		log.Fatal(err)
+	}
+	headers := strings.Split(string(buf), "\r\n")
+	requestLines := strings.Split(strings.Trim(headers[0], "\r\n"), " ")
+
+	if requestLines[1] == "/" {
+		if _, err := c.Write([]byte("HTTP/1.1 200 OK\r\n\r\n")); err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		if _, err := c.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n")); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
