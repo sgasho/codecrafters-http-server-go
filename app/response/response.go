@@ -40,13 +40,13 @@ func Respond(conn net.Conn, status Status, contentType ContentType, data []byte)
 }
 
 func RespondNoContent(conn net.Conn, status Status) {
-	if _, err := conn.Write([]byte(fmt.Sprintf("%s %s\r\n", Version, status))); err != nil {
+	if _, err := conn.Write([]byte(fmt.Sprintf("%s %s\r\n\r\n", Version, status))); err != nil {
 		log.Fatal(err)
 	}
 }
 
 func RespondError(conn net.Conn, status Status) {
-	if _, err := conn.Write([]byte(fmt.Sprintf("%s %s\r\n", Version, status))); err != nil {
+	if _, err := conn.Write([]byte(fmt.Sprintf("%s %s\r\n\r\n", Version, status))); err != nil {
 		log.Fatal(err)
 	}
 }
