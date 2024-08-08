@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os"
 )
@@ -16,9 +17,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	_, err = l.Accept()
+	c, err := l.Accept()
 	if err != nil {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
+	}
+	defer func(conn net.Conn) {
+		err := conn.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}(c)
+
+	if _, err := c.Write([]byte("HTTP/1.1 200 OK\r\n\r\n")); err != nil {
+		log.Fatal(err)
 	}
 }
