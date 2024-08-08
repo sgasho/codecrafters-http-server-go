@@ -15,22 +15,27 @@ func main() {
 		fmt.Println("Failed to bind to port 4221")
 		os.Exit(1)
 	}
-
-	c, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
-	}
-	defer func(conn net.Conn) {
-		err := conn.Close()
-		if err != nil {
+	defer func(l net.Listener) {
+		if err := l.Close(); err != nil {
 			log.Fatal(err)
 		}
-	}(c)
+	}(l)
 
+	for {
+		c, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+
+		go handleConnection(c)
+	}
+}
+
+func handleConnection(conn net.Conn) {
 	router := NewRouter()
 	router.Get("/", Ping)
 	router.Get("/echo/{message}", Echo)
 	router.Get("/user-agent", UserAgent)
-	router.Serve(c)
+	router.Serve(conn)
 }
