@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -41,7 +42,18 @@ func main() {
 			log.Fatal(err)
 		}
 	} else {
-		if _, err := c.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n")); err != nil {
+		regex, err := regexp.Compile(`/echo/(\w+)`)
+		if err != nil {
+			log.Fatal(err)
+		}
+		echo := regex.FindStringSubmatch(requestLines[1])
+		if len(echo) < 2 {
+			if _, err := c.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n")); err != nil {
+				log.Fatal(err)
+			}
+		}
+		responseBody := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(echo[1]), echo[1])
+		if _, err := c.Write([]byte(responseBody)); err != nil {
 			log.Fatal(err)
 		}
 	}
