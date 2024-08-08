@@ -67,7 +67,7 @@ func (r *Router) parseHeaders() (*RequestHeaders, error) {
 	hs := &Headers{}
 	headers := requestLineAndHeadersSlice[1:]
 	for _, header := range headers {
-		k, v := strings.Split(header, ":")[0], strings.Split(header, ":")[1]
+		k, v := strings.Split(header, ":")[0], strings.Split(header, ": ")[1]
 		switch k {
 		case "Host":
 			hs.Host = v
