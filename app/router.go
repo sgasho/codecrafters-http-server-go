@@ -9,9 +9,15 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+)
 
-	"github.com/codecrafters-io/http-server-starter-go/app/context"
-	"github.com/codecrafters-io/http-server-starter-go/app/response"
+const Version = "HTTP/1.1"
+
+type ContentType string
+
+const (
+	ContentTypePlainText   ContentType = "text/plain"
+	ContentTypeOctetStream ContentType = "application/octet-stream"
 )
 
 type Method string
@@ -25,7 +31,7 @@ type Endpoint struct {
 	Method     Method
 	PathRegex  *regexp.Regexp
 	ParamNames []string
-	Handler    func(ctx context.ServerContext, conn net.Conn)
+	Handler    func(ctx ServerContext, conn net.Conn)
 }
 
 type Endpoints []*Endpoint
@@ -49,12 +55,19 @@ func NewRouter() *Router {
 	return &Router{}
 }
 
+type Encoding string
+
+const (
+	EncodingGZip Encoding = "gzip"
+)
+
 type Headers struct {
-	Host          string
-	UserAgent     string
-	Accept        string
-	ContentType   response.ContentType
-	ContentLength int
+	Host           string
+	UserAgent      string
+	Accept         string
+	AcceptEncoding Encoding
+	ContentType    ContentType
+	ContentLength  int
 }
 
 type Request struct {
@@ -106,14 +119,16 @@ func (r *Router) newRequest() (*Request, error) {
 		case "Accept":
 			hs.Accept = v
 		case "Content-Type":
-			hs.ContentType = response.ContentType(v)
+			hs.ContentType = ContentType(v)
 		case "Content-Length":
 			hs.ContentLength, err = strconv.Atoi(v)
 			if err != nil {
 				return nil, err
 			}
+		case "Accept-Encoding":
+			hs.AcceptEncoding = Encoding(v)
 		default:
-			return nil, fmt.Errorf("parsing method for header key: %s is not implemented", k)
+			log.Printf("parsing method for header key: %s is not implemented", k)
 		}
 	}
 
@@ -133,7 +148,7 @@ func (r *Router) newRequest() (*Request, error) {
 	}, nil
 }
 
-func (r *Router) Get(path string, handler func(ctx context.ServerContext, conn net.Conn)) {
+func (r *Router) Get(path string, handler func(ctx ServerContext, conn net.Conn)) {
 	pathRegexStr, paramNames, err := convertPathToRegexAndExtractParamNames(path)
 	if err != nil {
 		log.Fatal(err)
@@ -150,7 +165,7 @@ func (r *Router) Get(path string, handler func(ctx context.ServerContext, conn n
 	})
 }
 
-func (r *Router) Post(path string, handler func(ctx context.ServerContext, conn net.Conn)) {
+func (r *Router) Post(path string, handler func(ctx ServerContext, conn net.Conn)) {
 	pathRegexStr, paramNames, err := convertPathToRegexAndExtractParamNames(path)
 	if err != nil {
 		log.Fatal(err)
@@ -176,7 +191,7 @@ func (r *Router) Serve(conn net.Conn) {
 
 	for _, endpoint := range r.Endpoints.FilterByMethod(req.Headers.method) {
 		if endpoint.PathRegex.MatchString(req.Headers.path) {
-			ctx := context.Background()
+			ctx := Background()
 
 			matches := endpoint.PathRegex.FindAllStringSubmatch(req.Headers.path, -1)
 			for i, match := range matches {
@@ -186,6 +201,7 @@ func (r *Router) Serve(conn net.Conn) {
 				ctx.SetParam(endpoint.ParamNames[i], match[1])
 			}
 			ctx.SetUserAgent(req.Headers.Headers.UserAgent)
+			ctx.SetEncoding(req.Headers.Headers.AcceptEncoding)
 			if req.Headers.method == MethodPost {
 				ctx.SetContentType(req.Headers.Headers.ContentType)
 				ctx.SetContentLength(req.Headers.Headers.ContentLength)
@@ -196,7 +212,7 @@ func (r *Router) Serve(conn net.Conn) {
 		}
 	}
 
-	response.RespondError(conn, response.StatusNotFound)
+	RespondError(conn, StatusNotFound)
 }
 
 func convertPathToRegexAndExtractParamNames(path string) (string, []string, error) {

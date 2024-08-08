@@ -8,16 +8,13 @@ import (
 	"net"
 	"os"
 	"syscall"
-
-	"github.com/codecrafters-io/http-server-starter-go/app/context"
-	"github.com/codecrafters-io/http-server-starter-go/app/response"
 )
 
-func Ping(ctx context.ServerContext, conn net.Conn) {
-	response.RespondNoContent(conn, response.StatusOK)
+func Ping(ctx ServerContext, conn net.Conn) {
+	RespondNoContent(conn, StatusOK)
 }
 
-func Echo(ctx context.ServerContext, conn net.Conn) {
+func Echo(ctx ServerContext, conn net.Conn) {
 	msg, err := ctx.GetParam("message")
 	if err != nil {
 		if _, err := conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n")); err != nil {
@@ -25,10 +22,11 @@ func Echo(ctx context.ServerContext, conn net.Conn) {
 		}
 	}
 
-	response.Respond(conn, response.StatusOK, response.ContentTypePlainText, []byte(msg))
+	ctx.SetContentType(ContentTypePlainText)
+	Respond(ctx, conn, StatusOK, []byte(msg))
 }
 
-func UserAgent(ctx context.ServerContext, conn net.Conn) {
+func UserAgent(ctx ServerContext, conn net.Conn) {
 	userAgent, err := ctx.GetUserAgent()
 	if err != nil {
 		if _, err := conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n")); err != nil {
@@ -36,26 +34,27 @@ func UserAgent(ctx context.ServerContext, conn net.Conn) {
 		}
 	}
 
-	response.Respond(conn, response.StatusOK, response.ContentTypePlainText, []byte(userAgent))
+	ctx.SetContentType(ContentTypePlainText)
+	Respond(ctx, conn, StatusOK, []byte(userAgent))
 }
 
-func GetFile(ctx context.ServerContext, conn net.Conn) {
+func GetFile(ctx ServerContext, conn net.Conn) {
 	if len(os.Args) != 3 || os.Args[1] != "--directory" {
-		response.RespondError(conn, response.StatusInternalServerError)
+		RespondError(conn, StatusInternalServerError)
 	}
 
 	dir := os.Args[2]
 	filename, err := ctx.GetParam("filename")
 	if err != nil {
-		response.RespondError(conn, response.StatusInternalServerError)
+		RespondError(conn, StatusInternalServerError)
 	}
 
 	f, err := os.Open(fmt.Sprintf("%s%s", dir, filename))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ENOENT) {
-			response.RespondError(conn, response.StatusNotFound)
+			RespondError(conn, StatusNotFound)
 		}
-		response.RespondError(conn, response.StatusInternalServerError)
+		RespondError(conn, StatusInternalServerError)
 	}
 	defer func(f *os.File) {
 		if err := f.Close(); err != nil {
@@ -65,30 +64,32 @@ func GetFile(ctx context.ServerContext, conn net.Conn) {
 
 	data, err := io.ReadAll(f)
 	if err != nil {
-		response.RespondError(conn, response.StatusInternalServerError)
+		RespondError(conn, StatusInternalServerError)
 	}
 
-	response.Respond(conn, response.StatusOK, response.ContentTypeOctetStream, data)
+	ctx.SetContentType(ContentTypeOctetStream)
+	Respond(ctx, conn, StatusOK, data)
 }
 
-func WriteFile(ctx context.ServerContext, conn net.Conn) {
+func WriteFile(ctx ServerContext, conn net.Conn) {
 	if len(os.Args) != 3 || os.Args[1] != "--directory" {
-		response.RespondError(conn, response.StatusInternalServerError)
+		RespondError(conn, StatusInternalServerError)
 	}
 
 	dir := os.Args[2]
 	filename, err := ctx.GetParam("filename")
 	if err != nil {
-		response.RespondError(conn, response.StatusInternalServerError)
+		RespondError(conn, StatusInternalServerError)
 	}
 
 	body, err := ctx.GetRequestBody()
 	if err != nil {
-		response.RespondError(conn, response.StatusBadRequest)
+		RespondError(conn, StatusBadRequest)
 	}
 
 	if err := os.WriteFile(dir+filename, []byte(body), 0644); err != nil {
-		response.RespondError(conn, response.StatusInternalServerError)
+		RespondError(conn, StatusInternalServerError)
 	}
-	response.RespondNoContent(conn, response.StatusCreated)
+
+	RespondNoContent(conn, StatusCreated)
 }
