@@ -85,7 +85,7 @@ func DoesFileExist(ctx context.ServerContext, conn net.Conn) {
 		}
 	}
 
-	responseBody := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: octet-stream\r\nContent-Length: %d\r\n\r\n%s", len(data), string(data))
+	responseBody := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", len(data), string(data))
 	if _, err := conn.Write([]byte(responseBody)); err != nil {
 		log.Fatal(err)
 	}
