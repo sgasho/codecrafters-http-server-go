@@ -39,7 +39,7 @@ func UserAgent(ctx context.ServerContext, conn net.Conn) {
 	response.Respond(conn, response.StatusOK, response.ContentTypePlainText, []byte(userAgent))
 }
 
-func DoesFileExist(ctx context.ServerContext, conn net.Conn) {
+func GetFile(ctx context.ServerContext, conn net.Conn) {
 	if len(os.Args) != 3 || os.Args[1] != "--directory" {
 		response.RespondError(conn, response.StatusInternalServerError)
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"log"
@@ -69,14 +70,21 @@ type RequestHeaders struct {
 }
 
 func (r *Router) newRequest() (*Request, error) {
-	buf := make([]byte, 1024)
-	if _, err := r.conn.Read(buf); err != nil {
-		log.Fatal(err)
+	reader := bufio.NewReader(r.conn)
+	requestLineAndHeaders := make([]string, 0)
+	// request line and headers
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return nil, err
+		}
+		if line == "\r\n" {
+			break
+		}
+		requestLineAndHeaders = append(requestLineAndHeaders, strings.Trim(line, "\r\n"))
 	}
-	splitByDoubleCRLF := strings.Split(string(buf), "\r\n\r\n")
-	requestLineAndHeaders := splitByDoubleCRLF[0]
-	requestLineAndHeadersSlice := strings.Split(requestLineAndHeaders, "\r\n")
-	requestLine := requestLineAndHeadersSlice[0]
+
+	requestLine := requestLineAndHeaders[0]
 	re, err := regexp.Compile(fmt.Sprintf(`^(\w+)\s+(/[^\s]*)\s+(HTTP/\d+\.\d+)$`))
 	if err != nil {
 		return nil, err
@@ -87,7 +95,7 @@ func (r *Router) newRequest() (*Request, error) {
 	}
 
 	hs := &Headers{}
-	headers := requestLineAndHeadersSlice[1:]
+	headers := requestLineAndHeaders[1:]
 	for _, header := range headers {
 		k, v := strings.Split(header, ":")[0], strings.Split(header, ": ")[1]
 		switch k {
@@ -109,6 +117,11 @@ func (r *Router) newRequest() (*Request, error) {
 		}
 	}
 
+	requestBodyBuf := make([]byte, hs.ContentLength)
+	if _, err := reader.Read(requestBodyBuf); err != nil {
+		return nil, err
+	}
+
 	return &Request{
 		Headers: &RequestHeaders{
 			method:   Method(match[1]),
@@ -116,7 +129,7 @@ func (r *Router) newRequest() (*Request, error) {
 			protocol: match[3],
 			Headers:  hs,
 		},
-		Body: splitByDoubleCRLF[1],
+		Body: string(requestBodyBuf),
 	}, nil
 }
 
