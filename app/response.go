@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"log"
 	"net"
@@ -38,12 +40,25 @@ func Respond(ctx ServerContext, conn net.Conn, status Status, data []byte) {
 	if err != nil {
 		log.Println(err)
 	}
+
 	responseBody := fmt.Sprintf(
 		"%s %s\r\n%s\r\n\r\n%s",
 		Version, status, responseHeaderString(contentType, encoding, data), string(data),
 	)
+
+	if encoding == EncodingGZip {
+		compressed, err := compressToGzip(data)
+		if err != nil {
+			RespondError(conn, StatusInternalServerError)
+		}
+		responseBody = fmt.Sprintf(
+			"%s %s\r\n%s\r\n\r\n%s",
+			Version, status, responseHeaderString(contentType, encoding, compressed), compressed,
+		)
+	}
+
 	if _, err := conn.Write([]byte(responseBody)); err != nil {
-		log.Fatal(err)
+		RespondError(conn, StatusInternalServerError)
 	}
 }
 
@@ -57,4 +72,19 @@ func RespondError(conn net.Conn, status Status) {
 	if _, err := conn.Write([]byte(fmt.Sprintf("%s %s\r\n\r\n", Version, status))); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func compressToGzip(input []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	w := gzip.NewWriter(&buf)
+
+	if _, err := w.Write(input); err != nil {
+		return nil, err
+	}
+
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
