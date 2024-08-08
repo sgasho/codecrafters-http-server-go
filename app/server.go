@@ -29,6 +29,7 @@ func main() {
 	}(c)
 
 	router := NewRouter()
+	router.Get("/", Ping)
 	router.Get("/echo/{message}", Echo)
 	router.Get("/user-agent", UserAgent)
 	router.Serve(c)

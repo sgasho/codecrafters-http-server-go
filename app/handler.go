@@ -8,6 +8,12 @@ import (
 	"github.com/codecrafters-io/http-server-starter-go/app/context"
 )
 
+func Ping(ctx context.ServerContext, conn net.Conn) {
+	if _, err := conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n")); err != nil {
+		log.Println(err)
+	}
+}
+
 func Echo(ctx context.ServerContext, conn net.Conn) {
 	msg, err := ctx.GetParam("message")
 	if err != nil {
