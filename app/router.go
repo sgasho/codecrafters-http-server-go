@@ -6,15 +6,18 @@ import (
 	"log"
 	"net"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/codecrafters-io/http-server-starter-go/app/context"
+	"github.com/codecrafters-io/http-server-starter-go/app/response"
 )
 
 type Method string
 
 const (
-	MethodGet Method = "GET"
+	MethodGet  Method = "GET"
+	MethodPost Method = "POST"
 )
 
 type Endpoint struct {
@@ -24,9 +27,21 @@ type Endpoint struct {
 	Handler    func(ctx context.ServerContext, conn net.Conn)
 }
 
+type Endpoints []*Endpoint
+
+func (es Endpoints) FilterByMethod(method Method) Endpoints {
+	selected := make(Endpoints, 0)
+	for _, endpoint := range es {
+		if endpoint.Method == method {
+			selected = append(selected, endpoint)
+		}
+	}
+	return selected
+}
+
 type Router struct {
 	conn      net.Conn
-	Endpoints []*Endpoint
+	Endpoints Endpoints
 }
 
 func NewRouter() *Router {
@@ -34,9 +49,16 @@ func NewRouter() *Router {
 }
 
 type Headers struct {
-	Host      string
-	UserAgent string
-	Accept    string
+	Host          string
+	UserAgent     string
+	Accept        string
+	ContentType   response.ContentType
+	ContentLength int
+}
+
+type Request struct {
+	Headers *RequestHeaders
+	Body    string
 }
 
 type RequestHeaders struct {
@@ -46,7 +68,7 @@ type RequestHeaders struct {
 	Headers  *Headers
 }
 
-func (r *Router) parseHeaders() (*RequestHeaders, error) {
+func (r *Router) newRequest() (*Request, error) {
 	buf := make([]byte, 1024)
 	if _, err := r.conn.Read(buf); err != nil {
 		log.Fatal(err)
@@ -75,16 +97,26 @@ func (r *Router) parseHeaders() (*RequestHeaders, error) {
 			hs.UserAgent = v
 		case "Accept":
 			hs.Accept = v
+		case "Content-Type":
+			hs.ContentType = response.ContentType(v)
+		case "Content-Length":
+			hs.ContentLength, err = strconv.Atoi(v)
+			if err != nil {
+				return nil, err
+			}
 		default:
 			return nil, fmt.Errorf("parsing method for header key: %s is not implemented", k)
 		}
 	}
 
-	return &RequestHeaders{
-		method:   Method(match[1]),
-		path:     match[2],
-		protocol: match[3],
-		Headers:  hs,
+	return &Request{
+		Headers: &RequestHeaders{
+			method:   Method(match[1]),
+			path:     match[2],
+			protocol: match[3],
+			Headers:  hs,
+		},
+		Body: splitByDoubleCRLF[1],
 	}, nil
 }
 
@@ -105,33 +137,53 @@ func (r *Router) Get(path string, handler func(ctx context.ServerContext, conn n
 	})
 }
 
+func (r *Router) Post(path string, handler func(ctx context.ServerContext, conn net.Conn)) {
+	pathRegexStr, paramNames, err := convertPathToRegexAndExtractParamNames(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	pathRegex, err := regexp.Compile(pathRegexStr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	r.Endpoints = append(r.Endpoints, &Endpoint{
+		Method:     MethodPost,
+		PathRegex:  pathRegex,
+		ParamNames: paramNames,
+		Handler:    handler,
+	})
+}
+
 func (r *Router) Serve(conn net.Conn) {
 	r.conn = conn
-	headers, err := r.parseHeaders()
+	req, err := r.newRequest()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	for _, endpoint := range r.Endpoints {
-		if endpoint.PathRegex.MatchString(headers.path) {
+	for _, endpoint := range r.Endpoints.FilterByMethod(req.Headers.method) {
+		if endpoint.PathRegex.MatchString(req.Headers.path) {
 			ctx := context.Background()
 
-			matches := endpoint.PathRegex.FindAllStringSubmatch(headers.path, -1)
+			matches := endpoint.PathRegex.FindAllStringSubmatch(req.Headers.path, -1)
 			for i, match := range matches {
 				if len(match) <= 1 {
 					continue
 				}
 				ctx.SetParam(endpoint.ParamNames[i], match[1])
 			}
-			ctx.SetUserAgent(headers.Headers.UserAgent)
+			ctx.SetUserAgent(req.Headers.Headers.UserAgent)
+			if req.Headers.method == MethodPost {
+				ctx.SetContentType(req.Headers.Headers.ContentType)
+				ctx.SetContentLength(req.Headers.Headers.ContentLength)
+				ctx.SetRequestBody(req.Body)
+			}
 			endpoint.Handler(ctx, conn)
 			return
 		}
 	}
 
-	if _, err := conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n")); err != nil {
-		log.Println(err)
-	}
+	response.RespondError(conn, response.StatusNotFound)
 }
 
 func convertPathToRegexAndExtractParamNames(path string) (string, []string, error) {

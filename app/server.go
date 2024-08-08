@@ -38,5 +38,6 @@ func handleConnection(conn net.Conn) {
 	router.Get("/echo/{message}", Echo)
 	router.Get("/user-agent", UserAgent)
 	router.Get("/files/{filename}", DoesFileExist)
+	router.Post("/files/{filename}", WriteFile)
 	router.Serve(conn)
 }
