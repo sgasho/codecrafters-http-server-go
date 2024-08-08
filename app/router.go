@@ -61,13 +61,21 @@ const (
 	EncodingGZip Encoding = "gzip"
 )
 
+func StringsToEncodings(ss []string) []Encoding {
+	es := make([]Encoding, len(ss))
+	for i, s := range ss {
+		es[i] = Encoding(strings.Trim(s, " "))
+	}
+	return es
+}
+
 type Headers struct {
-	Host           string
-	UserAgent      string
-	Accept         string
-	AcceptEncoding Encoding
-	ContentType    ContentType
-	ContentLength  int
+	Host            string
+	UserAgent       string
+	Accept          string
+	AcceptEncodings []Encoding
+	ContentType     ContentType
+	ContentLength   int
 }
 
 type Request struct {
@@ -126,7 +134,7 @@ func (r *Router) newRequest() (*Request, error) {
 				return nil, err
 			}
 		case "Accept-Encoding":
-			hs.AcceptEncoding = Encoding(v)
+			hs.AcceptEncodings = StringsToEncodings(strings.Split(v, ","))
 		default:
 			log.Printf("parsing method for header key: %s is not implemented", k)
 		}
@@ -201,7 +209,11 @@ func (r *Router) Serve(conn net.Conn) {
 				ctx.SetParam(endpoint.ParamNames[i], match[1])
 			}
 			ctx.SetUserAgent(req.Headers.Headers.UserAgent)
-			ctx.SetEncoding(req.Headers.Headers.AcceptEncoding)
+			for _, encoding := range req.Headers.Headers.AcceptEncodings {
+				if encoding == EncodingGZip {
+					ctx.SetEncoding(encoding)
+				}
+			}
 			if req.Headers.method == MethodPost {
 				ctx.SetContentType(req.Headers.Headers.ContentType)
 				ctx.SetContentLength(req.Headers.Headers.ContentLength)
